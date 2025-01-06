@@ -1,5 +1,4 @@
 import { facebook, instagram, shieldTick, support, truckFast, twitter } from "../assets/icons";
-import {  bigShoe2, bigShoe3, customer1, customer2, shoe4, shoe5, shoe6, shoe7, thumbnailShoe1, thumbnailShoe2, thumbnailShoe3 } from "../assets/images";
 import butter from "../assets/images/shea-butter.webp"
 import rice from "../assets/images/rice.jpg"
 import tractor from "../assets/images/tructor.jpeg"
