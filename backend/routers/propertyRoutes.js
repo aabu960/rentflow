@@ -1,4 +1,5 @@
 import express from "express";
+import mongoose from "mongoose";
 import Property from "../models/Property.js";
 import multer from "multer";
 import { verifyToken, verifyRole } from "../middleware/authMiddleware.js";
@@ -7,119 +8,138 @@ import streamifier from "streamifier";
 
 const router = express.Router();
 
-// Multer configuration (memory storage)
+// Multer memory storage (for Cloudinary uploads)
 const storage = multer.memoryStorage();
-const upload = multer({ storage });
+const upload = multer({ storage }).array("images", 5);
 
-// ----- Optional Admin Route -----
-// If needed, this route returns all properties for admin users.
-// You can keep or remove this route based on your needs.
-router.get("/admin", verifyToken, verifyRole("admin"), async (req, res) => {
+// 🟢 Get All Properties (Public)
+router.get("/", async (req, res) => {
   try {
     const properties = await Property.find().populate("owner", "username");
     res.status(200).json(properties);
   } catch (err) {
-    console.error("Admin GET error:", err);
+    console.error("Error Fetching Properties:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ----- Owner & Public Routes -----
-
-// Create Property (only for 'owner')
-// Note: Admin approval is removed; properties are marked as approved immediately.
-router.post("/", verifyToken, verifyRole("owner"), upload.single("image"), async (req, res) => {
+// 🔵 Get Single Property
+router.get("/:id", async (req, res) => {
   try {
-    let imageUrl = "";
-    if (req.file) {
-      const result = await new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { folder: "properties" },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          }
-        );
-        streamifier.createReadStream(req.file.buffer).pipe(stream);
-      });
-      imageUrl = result.secure_url;
+    const property = await Property.findById(req.params.id).populate("owner", "username");
+    if (!property) return res.status(404).json({ message: "Property not found" });
+    res.status(200).json(property);
+  } catch (err) {
+    console.error("Error Fetching Property:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🟣 Create Property (Owner Only)
+router.post("/", verifyToken, verifyRole("owner"), upload, async (req, res) => {
+  try {
+    let imageUrls = [];
+    if (req.files && req.files.length > 0) {
+      const uploadPromises = req.files.map((file) =>
+        new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: "properties" },
+            (error, result) => (error ? reject(error) : resolve(result.secure_url))
+          );
+          streamifier.createReadStream(file.buffer).pipe(stream);
+        })
+      );
+      imageUrls = await Promise.all(uploadPromises);
     }
 
     const newProperty = new Property({
       ...req.body,
       owner: req.user.id,
-      image: imageUrl,
-      isApproved: true, // Immediately approved
+      images: imageUrls,
+      isApproved: false,
     });
 
     await newProperty.save();
     res.status(201).json({ message: "Property created successfully", property: newProperty });
   } catch (err) {
-    console.error("Create Property error:", err);
+    console.error("Create Property Error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Remove the approve route since approval is no longer needed
-// router.put("/:id/approve", verifyToken, verifyRole("admin"), async (req, res) => {
-//   // This route is now redundant.
-// });
-
-// Get All Properties (public)
-router.get("/", async (req, res) => {
+// 🔴 Update Property (Owner Only)
+router.put("/:id", verifyToken, verifyRole("owner","admin"), upload, async (req, res) => {
   try {
-    // Return all properties since they are all approved
-    const properties = await Property.find().populate("owner", "username");
-    res.status(200).json(properties);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Get Single Property
-router.get("/:id", async (req, res) => {
-  try {
-    const property = await Property.findById(req.params.id).populate("owner", "username");
-    if (!property) {
-      return res.status(404).json({ message: "Property not found" });
+    let imageUrls = [];
+    if (req.files && req.files.length > 0) {
+      const uploadPromises = req.files.map((file) =>
+        new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: "properties" },
+            (error, result) => (error ? reject(error) : resolve(result.secure_url))
+          );
+          streamifier.createReadStream(file.buffer).pipe(stream);
+        })
+      );
+      imageUrls = await Promise.all(uploadPromises);
     }
-    res.status(200).json(property);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
-// Update Property (only for 'owner')
-router.put("/:id", verifyToken, verifyRole("owner"), async (req, res) => {
-  try {
-    // Simply update the property without forcing re-approval
+    const updateData = { ...req.body };
+
+    if (updateData.owner) {
+      if (!mongoose.Types.ObjectId.isValid(updateData.owner)) {
+        return res.status(400).json({ error: "Invalid owner ID format" });
+      }
+    }
+
+    if (imageUrls.length > 0) {
+      updateData.images = imageUrls;
+    }
+
     const updatedProperty = await Property.findOneAndUpdate(
       { _id: req.params.id, owner: req.user.id },
-      { ...req.body },
-      { new: true }
+      updateData,
+      { new: true, runValidators: true }
     );
-    if (!updatedProperty) {
-      return res.status(404).json({ message: "Property not found or unauthorized" });
-    }
+
+    if (!updatedProperty) return res.status(404).json({ message: "Property not found or unauthorized" });
     res.status(200).json({ message: "Property updated successfully", updatedProperty });
   } catch (err) {
+    console.error("Update Property Error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Delete Property (for 'owner' or 'admin')
+// 🟠 Delete Property (Owner or Admin)
 router.delete("/:id", verifyToken, verifyRole("owner", "admin"), async (req, res) => {
   try {
     const property = await Property.findById(req.params.id);
-    if (!property) {
-      return res.status(404).json({ message: "Property not found" });
-    }
+    if (!property) return res.status(404).json({ message: "Property not found" });
+
     if (req.user.role === "owner" && property.owner.toString() !== req.user.id) {
       return res.status(403).json({ message: "Unauthorized to delete this property" });
     }
+
     await Property.findByIdAndDelete(req.params.id);
     res.status(200).json({ message: "Property deleted successfully" });
   } catch (err) {
+    console.error("Delete Property Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🟡 Approve Property (Admin Only)
+router.patch("/:id/approve", verifyToken, verifyRole("admin"), async (req, res) => {
+  try {
+    const property = await Property.findByIdAndUpdate(
+      req.params.id,
+      { isApproved: true },
+      { new: true }
+    );
+    if (!property) return res.status(404).json({ message: "Property not found" });
+    res.status(200).json({ message: "Property approved successfully", property });
+  } catch (err) {
+    console.error("Approve Property Error:", err);
     res.status(500).json({ error: err.message });
   }
 });
