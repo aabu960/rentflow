@@ -26,8 +26,13 @@ router.get("/", async (req, res) => {
 // 🔵 Get Single Property
 router.get("/:id", async (req, res) => {
   try {
-    const property = await Property.findById(req.params.id).populate("owner", "username");
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: "Invalid property ID" });
+    }
+
+    const property = await Property.findById(req.params.id).populate("owner", "username role");
     if (!property) return res.status(404).json({ message: "Property not found" });
+
     res.status(200).json(property);
   } catch (err) {
     console.error("Error Fetching Property:", err);
@@ -68,9 +73,11 @@ router.post("/", verifyToken, verifyRole("owner"), upload, async (req, res) => {
 });
 
 // 🔴 Update Property (Owner Only)
-router.put("/:id", verifyToken, verifyRole("owner","admin"), upload, async (req, res) => {
+router.put("/:id", verifyToken, verifyRole("owner", "admin"), upload, async (req, res) => {
   try {
+    console.log("Request Body:", req.body); // Log request body to inspect the data
     let imageUrls = [];
+    
     if (req.files && req.files.length > 0) {
       const uploadPromises = req.files.map((file) =>
         new Promise((resolve, reject) => {
@@ -82,10 +89,12 @@ router.put("/:id", verifyToken, verifyRole("owner","admin"), upload, async (req,
         })
       );
       imageUrls = await Promise.all(uploadPromises);
+      console.log("Uploaded Image URLs:", imageUrls); // Log uploaded image URLs
     }
 
     const updateData = { ...req.body };
 
+    // Ensure owner ID is valid (if provided in the update request)
     if (updateData.owner) {
       if (!mongoose.Types.ObjectId.isValid(updateData.owner)) {
         return res.status(400).json({ error: "Invalid owner ID format" });
@@ -95,6 +104,8 @@ router.put("/:id", verifyToken, verifyRole("owner","admin"), upload, async (req,
     if (imageUrls.length > 0) {
       updateData.images = imageUrls;
     }
+
+    console.log("Update Data:", updateData); // Log the data that will be updated
 
     const updatedProperty = await Property.findOneAndUpdate(
       { _id: req.params.id, owner: req.user.id },
