@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 
-const API_URL = "https://rentflow-l80j.onrender.com/properties";
+const API_URL = "https://rentflow-backend.onrender.com/properties";
 
 const Properties = () => {
   const [properties, setProperties] = useState([]);

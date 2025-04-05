@@ -17,8 +17,8 @@ const AuthForm = () => {
     try {
       const url =
         activeTab === 'signin'
-          ? 'https://rentflow-l80j.onrender.com/auth/signin'
-          : 'https://rentflow-l80j.onrender.com/auth/signup';
+          ? 'https://rentflow-backend.onrender.com/auth/signin'
+          : 'https://rentflow-backend.onrender.com/auth/signup';
   
       const payload =
         activeTab === 'signin'

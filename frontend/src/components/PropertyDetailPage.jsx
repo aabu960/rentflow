@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 
-const API_URL = "https://rentflow-l80j.onrender.com/properties"; // Adjust if needed
+const API_URL = "https://rentflow-backend.onrender.com/properties"; // Adjust if needed
 
 const PropertyDetail = () => {
   const { id } = useParams(); // Get the property ID from the URL
