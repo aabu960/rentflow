@@ -14,7 +14,7 @@ yarn-error.log*
 
 # Ignore build files
 dist/
-build/
+
 .env
 # Ignore system files
 .DS_Store
