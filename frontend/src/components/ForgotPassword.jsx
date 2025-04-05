@@ -10,7 +10,7 @@ const ForgotPassword = () => {
     e.preventDefault();
     try {
       const response = await axios.post(
-        'http://localhost:5000/api/auth/forgot-password',
+        'https://rentflow-l80j.onrender.com/api/auth/forgot-password',
         { email }
       );
       setMessage(response.data.message);

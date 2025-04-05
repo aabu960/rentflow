@@ -22,7 +22,7 @@ cloudinary.config({
 });
 
 // Middleware
-app.use(cors({ origin: 'http://localhost:5174' }));
+app.use(cors({ origin: 'https://rentflow-l80j.onrender.com' }));
 app.use(express.json());
 app.use(compression()); // GZIP Compression
 

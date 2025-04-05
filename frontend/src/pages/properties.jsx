@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 
-const API_URL = "http://localhost:5002/properties";
+const API_URL = "https://rentflow-l80j.onrender.com/properties";
 
 const Properties = () => {
   const [properties, setProperties] = useState([]);
